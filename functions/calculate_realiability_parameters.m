@@ -1,29 +1,25 @@
-%% Description
-% Goncalves, BM (2018)
-% https://www.researchgate.net/profile/Basilio_Goncalves
+% Reliability = calculate_realiability_parameters (data,CI,Type)
 %
 % this funtion calculates reliability pamaeters for two different trials
 %
-%----------------------------------------------------------------------
-%----------------------------------------------------------------------
-%   USES A LESS CONSERVATIVE MDC CALCULATION!!!! from Thorborg et al (2010)
-%----------------------------------------------------------------------
-%----------------------------------------------------------------------
-%
-% CALLBACK FUNCTIONS
-%   ICC (Salarian, A. 2008)
-%   intraCV (Goncalves, BM 2018)
-%   BlandAltman (Ran Klein 2010)
-%   swtest (Saïda 2014)
-%
+%-------------------------------------------------------------------------
 % INPUT
 %   data = NxM double matrix.
 %             N =  number of particiants (rows)
 %             M = number of trials per condition (columns)
-
+%
 %-------------------------------------------------------------------------
-%OUTPUT
+% OUTPUT
 %   Reliability = cell arrary with ICC, CV, SEM, MDC, heteroscedasticity and Bias values
+%             MDC LESS CONSERVATIVE CALCULATION (Thorborg et al (2010))
+%
+%-------------------------------------------------------------------------
+% DEPENDENCIES: ICC (Salarian, A. 2008), intraCV (Goncalves, BM 2018),
+% BlandAltman (Ran Klein 2010), swtest (Saïda 2014)
+%
+%-------------------------------------------------------------------------
+% Goncalves, BM (2018)
+% https://www.researchgate.net/profile/Basilio_Goncalves
 %
 %--------------------------------------------------------------------------
 %UPDATES 
@@ -52,7 +48,7 @@
 % Sports Med, 26(4), 217-238
 
 %% start function
-function Reliability = ReliCalc_plus (data,CI,Type)
+function Reliability = calculate_realiability_parameters (data,CI,Type)
 
 if nargin == 1
     Alpha = 0.05;
@@ -61,9 +57,11 @@ else
     Alpha = 1-CI/100;
 end
 
-[~,Ntrials] = size (data);                                                % get the Number of participants (N) and number of trials (Ntrials)
+% get the Number of participants (N) and number of trials (Ntrials)
+[~,Ntrials] = size (data);
 
-pairs = nchoosek(1:Ntrials,2)';                         % Binomial coefficient or all combinations.
+% Binomial coefficient or all combinations.
+pairs = nchoosek(1:Ntrials,2)';
 [~,Npairs]= size(pairs);
 
 if isempty (data)
@@ -82,10 +80,15 @@ end
 %% calculate ICC 
 % ICC total = average of ICCs for each pair of trials
 for p = 1:Npairs
+
     PairData = data (:,pairs(:,p));
-    PairData(PairData==0) = NaN;                                                 %remove Zeros (https://au.mathworks.com/matlabcentral/answers/6038-convert-zeros-to-nan)
-    PairData = rmmissing(PairData);                                              % delete all the rows with NaN
-        
+    %remove Zeros (https://au.mathworks.com/matlabcentral/answers/6038-convert-zeros-to-nan)
+    PairData(PairData==0) = NaN;
+
+    % delete all the rows with NaN
+    PairData = rmmissing(PairData);                                              
+    
+    % If not defined, ask user to select type of ICC to use based on McGraw et al. (1996)
     if nargin < 3
         list = {'1-1','1-k','C-1',...
             'C-k','A-1','A-k'};
@@ -93,9 +96,11 @@ for p = 1:Npairs
             ('Select the Type of ICC that is more adequate for your data');
         [indx,~] = listdlg('PromptString',PromptText,...
             'ListString',list, 'ListSize', [300 150]);
-        Type = list{indx};                                                             % determine the type of ICC to use based on McGraw et al. (1996)
+        Type = list{indx};
     end
-    [ICCmean(p), ICClb(p), ICCub(p)] = ICC(PairData, Type, Alpha);                                  % Calculate ICC
+
+    % Calculate ICC
+    [ICCmean(p), ICClb(p), ICCub(p)] = ICC(PairData, Type, Alpha);
     
 end
 
@@ -106,20 +111,27 @@ ICCtext = sprintf ('%.2f (%.2f-%.2f)',mean(ICCmean),mean(ICClb),mean(ICCub));
 
 for p = 1:Npairs
     PairData = data (:,pairs(:,p));
-    PairData(PairData==0) = NaN;                                                 %remove Zeros (https://au.mathworks.com/matlabcentral/answers/6038-convert-zeros-to-nan)
+    
+    %remove Zeros (https://au.mathworks.com/matlabcentral/answers/6038-convert-zeros-to-nan)
+    PairData(PairData==0) = NaN;
     PairData = rmmissing(PairData);
     
-    
-SDdif = std(PairData (:,2)- PairData(:,1));                                         % Standard deviation of the difference between each pair of trials (Test2 - Test1)
-SEM(p) = SDdif/sqrt(2);                                                        % standard error of measurement for each pair of trials
-df = length(PairData)-1;                                                         % degrees of freedom
+    % Standard deviation of the difference between each pair of trials (Test2 - Test1)
+    SDdif = std(PairData (:,2)- PairData(:,1));
 
-ChiInv = chi2inv(1-Alpha/2,df);                                               % Chi-square inverse cumulative distribution function
-SEM_LB(p) = sqrt(df*SEM(p)^2/ChiInv);                                               % Lower border of 95% CI (Hopkins, 2005)
+    % Chi-square inverse cumulative distribution function
+    df = length(PairData)-1;
+    ChiInv = chi2inv(1-Alpha/2,df);
 
-ChiInv = chi2inv(Alpha/2,df);
-SEM_UB(p) = sqrt(df*SEM(p)^2/ChiInv);                                               % Upper border of 95% CI 
+    % standard error of measurement for each pair of trials
+    SEM(p) = SDdif/sqrt(2); 
 
+    % Lower border of 95% CI (Hopkins, 2005)
+    SEM_LB(p) = sqrt(df*SEM(p)^2/ChiInv);                                               
+
+    % Upper border of 95% CI
+    ChiInv = chi2inv(Alpha/2,df);
+    SEM_UB(p) = sqrt(df*SEM(p)^2/ChiInv);                                              
 end
 
 SEM = mean(SEM);
